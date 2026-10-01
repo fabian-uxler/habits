@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#0f7a4a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MyHabits">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>MyHabits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: eine Tabelle. Gewohnheiten als Spalten in der Kopfzeile, links Wochentag und Datum (fixiert), heute zuoberst und farbig. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --ink: #14202b;
+  --muted: #5d6b79;
+  --line: #d9e0e6;
+  --line-soft: #e6ebef;
+  --field-line: #c3ccd5;
+  --accent: #0f7a4a;
+  --accent-ink: #ffffff;
+  --accent-text: #0f6b41;
+  --accent-soft: #def3e7;
+  --today-cell: #eef8f2;
+  --icon-off: #8996a3;
+  --danger: #a22f24;
+  --danger-line: #b3382c;
+  --alert: #d92d20;
+  --shadow: rgba(20, 32, 43, 0.3);
+  --scrim: rgba(20, 32, 43, 0.45);
+  --font-display: "Familjen Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151b;
+    --surface: #16212a;
+    --surface-2: #1c2933;
+    --ink: #e6edf2;
+    --muted: #93a2af;
+    --line: #28363f;
+    --line-soft: #202d36;
+    --field-line: #3a4b57;
+    --accent: #3fc884;
+    --accent-ink: #06231a;
+    --accent-text: #6fe0a6;
+    --accent-soft: #15382a;
+    --today-cell: #182e27;
+    --icon-off: #6f7f8c;
+    --danger: #ff9a8f;
+    --danger-line: #ff9a8f;
+    --alert: #ff7b6e;
+    --shadow: rgba(0, 0, 0, 0.55);
+    --scrim: rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151b;
+  --surface: #16212a;
+  --surface-2: #1c2933;
+  --ink: #e6edf2;
+  --muted: #93a2af;
+  --line: #28363f;
+  --line-soft: #202d36;
+  --field-line: #3a4b57;
+  --accent: #3fc884;
+  --accent-ink: #06231a;
+  --accent-text: #6fe0a6;
+  --accent-soft: #15382a;
+  --today-cell: #182e27;
+  --icon-off: #6f7f8c;
+  --danger: #ff9a8f;
+  --danger-line: #ff9a8f;
+    --alert: #ff7b6e;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --scrim: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 16px;
+  padding-inline: 16px;
+  padding-block: 20px 16px;
+}
+button { font-family: inherit; }
+.app { height: 100%; max-width: 720px; margin-inline: auto; display: flex; flex-direction: column; gap: 14px; }
+
+header { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+.hrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hrow .summary { line-height: 22px; }
+h1 { font-size: 1.75rem; line-height: 1.1; margin: 0; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.summary {
+  font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; white-space: nowrap;
+}
+.summary strong { color: var(--accent-text); font-weight: 500; }
+
+.grid-scroll {
+  flex: 1 1 0; min-height: 0; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+}
+table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 100%; }
+th, td { padding: 0; text-align: center; }
+
+thead th {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--surface-2); border-bottom: 1px solid var(--line);
+  padding: 12px 6px 10px; vertical-align: top; min-width: 96px; font-weight: 400;
+}
+thead th.corner {
+  left: 0; z-index: 4; width: 80px; min-width: 80px; text-align: left; padding-left: 14px;
+  border-right: 1px solid var(--line);
+}
+.corner-label { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.habit-name { display: block; max-width: 200px; margin-inline: auto; font-weight: 600; font-size: 1rem; line-height: 1.15; overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+.habit-sub { display: block; max-width: 200px; margin-inline: auto; font-family: var(--font-mono); font-size: 0.7rem; line-height: 1.3; color: var(--muted); margin-top: 3px; overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+.chip { display: inline-block; margin-top: 8px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent-text); background: var(--accent-soft); border-radius: 999px; padding: 3px 9px; }
+.hbtn {
+  display: block; width: 100%; height: 100%; padding: 12px 6px 10px; background: transparent; color: inherit;
+  border: 0; cursor: pointer; text-align: center; font: inherit;
+}
+.hbtn:hover, .nbtn:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.hbtn:focus-visible, .nbtn:focus-visible { outline-offset: -3px; }
+thead th.hab { padding: 0; }
+tbody th.rowh { padding: 0; }
+.nbtn {
+  display: block; width: 100%; height: 100%; padding: 8px 6px 8px 14px; background: transparent; color: inherit;
+  border: 0; cursor: pointer; text-align: left; font: inherit;
+}
+.bubble { width: 15px; height: 15px; color: var(--accent-text); flex-shrink: 0; }
+.hright { display: flex; align-items: center; gap: 8px; }
+.today-btn {
+  flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--accent); background: transparent;
+  color: var(--accent-text); font-weight: 600; font-size: 0.85rem; cursor: pointer;
+}
+.today-btn:hover { background: var(--accent-soft); }
+thead th.addh { width: 56px; min-width: 56px; padding: 12px 6px 10px; }
+thead th.fillh { min-width: 0; padding: 0; }
+.plus {
+  width: 44px; height: 44px; padding: 0; border-radius: 12px; border: 1px solid var(--field-line);
+  background: var(--surface); color: var(--accent-text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.plus:hover { background: var(--accent-soft); }
+.plus svg { width: 18px; height: 18px; display: block; }
+.empty .btn { margin-top: 14px; }
+.slot-f { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; opacity: 0.4; }
+.slot-f svg { width: 32px; height: 32px; display: block; }
+.slots.multi .slot-f { width: 36px; }
+.slots.multi .slot-f svg { width: 28px; height: 28px; }
+tr.more td { padding: 8px 0; text-align: left; background: var(--surface); border-bottom: 1px solid var(--line-soft); height: auto; }
+.more-btn {
+  position: sticky; left: 12px; min-height: 40px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--field-line); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 0.9rem; cursor: pointer;
+}
+.inp.area { height: auto; min-height: 150px; padding: 12px 14px; resize: vertical; line-height: 1.4; }
+
+tbody th {
+  position: sticky; left: 0; z-index: 2; background: var(--surface);
+  width: 80px; min-width: 80px; text-align: left; padding: 8px 6px 8px 14px; font-weight: 400;
+  border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line);
+}
+tbody td { border-bottom: 1px solid var(--line-soft); padding: 4px; height: 56px; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+.grid-scroll.scrolled thead th.corner, .grid-scroll.scrolled tbody th { box-shadow: 8px 0 10px -8px var(--shadow); }
+.wd { display: flex; align-items: center; gap: 5px; font-weight: 700; font-size: 1.05rem; line-height: 1.1; }
+.dt { display: block; font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+tr.is-today th { background: var(--accent-soft); }
+tr.is-today td { background: var(--today-cell); }
+tr.is-today .wd { color: var(--accent-text); }
+tr.is-weekend .wd { color: var(--muted); }
+tr.is-today.is-weekend .wd { color: var(--accent-text); }
+
+.slots { display: flex; justify-content: center; align-items: center; }
+.slot {
+  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 12px; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: transform 0.1s;
+}
+.slot:active { transform: scale(0.92); }
+.slot svg { width: 32px; height: 32px; display: block; }
+.slots.multi .slot { width: 36px; }
+.slots.multi .slot svg { width: 28px; height: 28px; }
+.ic circle { fill: none; }
+.ic path { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ic-off circle { stroke: var(--icon-off); stroke-width: 2; }
+.ic-off path { stroke: var(--icon-off); }
+.ic-on circle { fill: var(--accent); stroke: none; }
+.ic-on path { stroke: var(--accent-ink); }
+.ic-imp circle.ring { stroke: var(--alert); stroke-width: 2; }
+.ic-imp path { stroke: var(--alert); stroke-width: 2.8; }
+.ic-imp circle.dot { fill: var(--alert); stroke: none; }
+.na { color: var(--line); font-size: 1.1rem; user-select: none; }
+
+button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.bar { display: flex; gap: 10px; flex-shrink: 0; }
+.btn {
+  font-weight: 600; font-size: 1rem; cursor: pointer; border-radius: 12px; min-height: 48px;
+  padding: 0 18px; border: 1px solid var(--field-line); background: var(--surface); color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.grow { flex: 1 1 0; }
+.btn.danger { background: transparent; border-color: var(--danger-line); color: var(--danger); }
+.btn.big { min-height: 52px; font-size: 1.05rem; }
+.status { margin: 0; color: var(--danger); font-size: 0.85rem; flex-shrink: 0; }
+.status:empty { display: none; }
+.empty { padding: 32px 20px; color: var(--muted); text-align: center; line-height: 1.4; }
+
+/* Bearbeiten-Dialog */
+.overlay { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-end; }
+.backdrop { position: absolute; inset: 0; background: var(--scrim); }
+.panel {
+  position: relative; width: 100%; max-width: 480px; max-height: 94%; overflow: auto;
+  background: var(--bg); border-radius: 20px 20px 0 0; padding: 12px 16px; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 16px;
+}
+@media (min-width: 560px) { .overlay { align-items: center; } .panel { border-radius: 20px; max-height: 90%; } }
+.phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-left: 0; }
+.phead h2 { margin: 0; font-size: 1.5rem; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; }
+.icon-btn { width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.icon-btn svg { width: 20px; height: 20px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.lbl { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.inp {
+  height: 52px; padding: 0 14px; font: inherit; font-size: 1.05rem; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--field-line); border-radius: 12px; width: 100%; min-width: 0;
+}
+.inp.small { height: 48px; font-size: 1rem; }
+.inp::placeholder { color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 8px 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.card.pad { padding-right: 16px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-title { font-weight: 600; font-size: 1.05rem; }
+.help { margin-top: 2px; font-size: 0.875rem; line-height: 1.35; color: var(--muted); }
+.divider { border-top: 1px solid var(--line-soft); padding-top: 14px; padding-right: 8px; display: flex; flex-direction: column; gap: 14px; }
+.switch { flex-shrink: 0; width: 64px; height: 48px; padding: 0; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.track { position: relative; display: block; width: 52px; height: 30px; border-radius: 15px; background: var(--icon-off); transition: background 0.15s; }
+.knob { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #ffffff; transition: left 0.15s; }
+.switch[aria-checked="true"] .track { background: var(--accent); }
+.switch[aria-checked="true"] .knob { left: 25px; }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.step { width: 44px; height: 44px; padding: 0; border: 1px solid var(--field-line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.num { min-width: 28px; text-align: center; font-family: var(--font-mono); font-size: 1.1rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stepper .unit { font-weight: 600; }
+.stepper .grow { flex: 1 1 auto; font-weight: 600; }
+.seg { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); }
+.seg button { flex: 1 1 0; min-width: 0; height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.days { display: flex; gap: 4px; }
+.days button { flex: 1 1 0; min-width: 0; height: 44px; padding: 0; border: 1px solid var(--field-line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+.days button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.err { margin: 0; color: var(--danger); font-size: 0.9rem; }
+.err:empty { display: none; }
+.actions { display: flex; flex-direction: column; gap: 10px; }
+
+@media (prefers-reduced-motion: reduce) { .slot, .track, .knob { transition: none; } .slot:active { transform: none; } }
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>MyHabits</h1>
+    <div class="hrow">
+      <div class="summary" id="summary"></div>
+      <button type="button" class="today-btn" data-act="today">Heute</button>
+    </div>
+  </header>
+
+  <div class="grid-scroll" id="gridScroll">
+    <table id="grid" aria-label="Gewohnheiten pro Tag"></table>
+    <div class="empty" id="empty" hidden>Noch keine Gewohnheiten. Lege die erste an.<br><button class="btn primary" type="button" data-act="new">Neue Gewohnheit</button></div>
+  </div>
+
+  <p class="status" id="status" role="status"></p>
+</div>
+
+<div id="sheet"></div>
+
+<script>
+(function () {
+  var DAYS_AHEAD = 30;
+  var WD = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+  var WD_MON = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  var WD_FULL_MON = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+  var STORE_KEY = "gewohnheiten-v2";
+  var MAX_SLOTS = 6;
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function keyOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function parseKey(k) { var p = k.split("-"); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+  function monIndex(d) { return (d.getDay() + 6) % 7; }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function todayKey() { return keyOf(new Date()); }
+
+  function normHabit(h) {
+    var base = {
+      id: "h" + Date.now().toString(36),
+      name: "", sub: "", streak: true, important: false,
+      multi: false, count: 1, descs: [],
+      mode: "daily", everyN: 2, start: todayKey(),
+      days: [false, false, false, false, false, false, false]
+    };
+    var out = Object.assign(base, h);
+    if (!Array.isArray(out.days) || out.days.length !== 7) out.days = base.days;
+    if (!Array.isArray(out.descs)) out.descs = [];
+    return out;
+  }
+
+  var state = {
+    habits: [normHabit({ id: "kreatin", name: "Kreatin", sub: "1× täglich" })],
+    log: {},
+    notes: {}
+  };
+  var noteKey = null, noteDraft = "", pastDays = 14, userMoved = false;
+  var draft = null, draftNew = false, confirmRemove = false, draftError = "";
+  var persist = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var grid = $("grid"), gridScroll = $("gridScroll"), sheet = $("sheet"), statusEl = $("status");
+
+  /* ---------- Logik ---------- */
+  function slotCount(h) { return h.multi ? Math.max(2, Math.min(MAX_SLOTS, h.count | 0)) : 1; }
+
+  function isDue(h, key) {
+    if (h.mode === "every") {
+      var diff = Math.round((parseKey(key) - parseKey(h.start)) / 86400000);
+      var n = Math.max(2, h.everyN | 0);
+      return diff >= 0 && diff % n === 0;
+    }
+    if (h.mode === "weekdays") {
+      var p = key.split("-");
+      var d = new Date(+p[0], +p[1] - 1, +p[2], 12);
+      return !!h.days[monIndex(d)];
+    }
+    return true;
+  }
+
+  function slotsDone(h, key) {
+    var m = (state.log[h.id] || {})[key];
+    if (!m) return 0;
+    var n = 0, total = slotCount(h);
+    for (var i = 0; i < total; i++) if (m[i] !== undefined) n++;
+    return n;
+  }
+
+  function streakOf(h) {
+    var d = new Date(); d.setHours(12, 0, 0, 0);
+    var n = 0;
+    for (var i = 0; i < 400; i++) {
+      var key = keyOf(d);
+      if (isDue(h, key)) {
+        if (slotsDone(h, key) >= slotCount(h)) n++;
+        else if (i > 0) break;
+      }
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+
+  function dayList() {
+    var out = [], base = new Date();
+    base.setHours(12, 0, 0, 0);
+    for (var i = -pastDays; i <= DAYS_AHEAD; i++) {
+      var d = new Date(base.getTime());
+      d.setDate(base.getDate() + i);
+      out.push(d);
+    }
+    return out;
+  }
+
+  /* ---------- Darstellung ---------- */
+  var ICON_ON = '<svg class="ic ic-on" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15"/><path d="M10 16.5l4.2 4.2L22 12.5"/></svg>';
+  var ICON_OFF = '<svg class="ic ic-off" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14"/><path d="M10 16.5l4.2 4.2L22 12.5"/></svg>';
+  var ICON_IMP = '<svg class="ic ic-imp" viewBox="0 0 32 32" aria-hidden="true"><circle class="ring" cx="16" cy="16" r="14"/><path d="M16 8.5v9"/><circle class="dot" cx="16" cy="22.4" r="1.8"/></svg>';
+  var PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20z"/></svg>';
+  var BUBBLE = '<svg class="bubble" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.6A8 8 0 1 1 21 12z"/></svg>';
+  var CLOSE = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l12 12M16 4L4 16"/></svg>';
+
+  function subText(h) {
+    var parts = [];
+    if (h.multi) {
+      var names = h.descs.slice(0, slotCount(h)).map(function (s) { return s.trim(); }).filter(Boolean);
+      parts.push(names.length ? names.join(" · ") : slotCount(h) + "× täglich");
+    } else if (h.sub) {
+      parts.push(h.sub);
+    }
+    return parts.join(" · ");
+  }
+
+  function headerHtml(h) {
+    var w = Math.max(96, slotCount(h) * 36 + 16);
+    var inner = '<span class="habit-name">' + esc(h.name) + "</span>";
+    var sub = subText(h);
+    if (sub) inner += '<span class="habit-sub">' + esc(sub) + "</span>";
+    if (h.streak) inner += '<span class="chip">Serie ' + streakOf(h) + "</span>";
+    return '<th scope="col" class="hab" style="width:' + w + 'px;min-width:' + w + 'px"><button type="button" class="hbtn" data-act="open-edit" data-h="' + esc(h.id) + '" aria-label="' + esc(h.name) + ' bearbeiten">' + inner + "</button></th>";
+  }
+
+  function cellHtml(h, d, key) {
+    if (!isDue(h, key)) {
+      return '<td title="Nicht fällig"><span class="na" aria-hidden="true">–</span></td>';
+    }
+    var total = slotCount(h), m = (state.log[h.id] || {})[key] || {};
+    var dateTxt = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ".";
+    if (key > todayKey()) {
+      var f = '<td><div class="slots' + (total > 1 ? " multi" : "") + '">';
+      for (var q = 0; q < total; q++) {
+        f += '<span class="slot-f" role="img" aria-label="' + esc(h.name + " am " + dateTxt + ", geplant") + '">' + (h.important ? ICON_IMP : ICON_OFF) + "</span>";
+      }
+      return f + "</div></td>";
+    }
+    var html = '<td><div class="slots' + (total > 1 ? " multi" : "") + '">';
+    for (var s = 0; s < total; s++) {
+      var on = m[s] !== undefined;
+      var desc = h.multi && h.descs[s] ? " (" + h.descs[s].trim() + ")" : "";
+      html += '<button type="button" class="slot" data-act="slot" data-h="' + esc(h.id) + '" data-d="' + key + '" data-s="' + s + '"' +
+        ' aria-pressed="' + (on ? "true" : "false") + '" aria-label="' + esc(h.name + desc + " am " + dateTxt + (on ? ", erledigt" : (h.important ? ", offen, wichtig" : ", offen"))) + '">' +
+        (on ? ICON_ON : (h.important ? ICON_IMP : ICON_OFF)) + "</button>";
+    }
+    return html + "</div></td>";
+  }
+
+  function render() {
+    var tk = todayKey();
+
+    var total = 0, done = 0;
+    state.habits.forEach(function (h) {
+      if (isDue(h, tk)) { total += slotCount(h); done += slotsDone(h, tk); }
+    });
+    var sum = $("summary");
+    sum.textContent = "";
+    if (total === 0) {
+      sum.textContent = "Heute nichts fällig";
+    } else {
+      sum.appendChild(document.createTextNode("Heute "));
+      var st = document.createElement("strong");
+      st.textContent = done + " / " + total;
+      sum.appendChild(st);
+      sum.appendChild(document.createTextNode(" erledigt"));
+    }
+
+    $("empty").hidden = state.habits.length > 0;
+    grid.hidden = state.habits.length === 0;
+    if (state.habits.length === 0) { grid.innerHTML = ""; return; }
+
+    var html = '<thead><tr><th scope="col" class="corner"><span class="corner-label">Tag</span></th>';
+    state.habits.forEach(function (h) { html += headerHtml(h); });
+    html += '<th scope="col" class="addh"><button type="button" class="plus" data-act="new" aria-label="Neue Gewohnheit"><svg viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M9 3v12M3 9h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></th><th scope="col" class="fillh" aria-hidden="true"></th>';
+    html += "</tr></thead><tbody>";
+    html += '<tr class="more"><td colspan="' + (state.habits.length + 3) + '"><button type="button" class="more-btn" data-act="more">Ältere Tage anzeigen</button></td></tr>';
+    dayList().forEach(function (d) {
+      var key = keyOf(d), isToday = key === tk, weekend = d.getDay() === 0 || d.getDay() === 6;
+      var dateTxt = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ".";
+      var hasNote = !!state.notes[key];
+      html += '<tr' + (isToday ? ' id="todayRow"' : "") + ' class="' + (isToday ? "is-today " : "") + (weekend ? "is-weekend" : "") + '">' +
+        '<th scope="row" class="rowh"><button type="button" class="nbtn" data-act="note" data-d="' + key + '" aria-label="Notiz für ' + WD[d.getDay()] + ", " + dateTxt + (hasNote ? ", Notiz vorhanden" : "") + '">' +
+        '<span class="wd">' + WD[d.getDay()] + (hasNote ? BUBBLE : "") + '</span><span class="dt">' + dateTxt + "</span></button></th>";
+      state.habits.forEach(function (h) { html += cellHtml(h, d, key); });
+      html += '<td class="addc"></td><td class="fillc"></td></tr>';
+    });
+    grid.innerHTML = html + "</tbody>";
+    gridScroll.classList.toggle("scrolled", gridScroll.scrollLeft > 0);
+    if (!userMoved && !draft && !noteKey) scrollToToday();
+  }
+
+  function scrollToToday(smooth) {
+    var row = $("todayRow");
+    if (!row) return;
+    var y = row.getBoundingClientRect().top - grid.getBoundingClientRect().top;
+    var head = grid.querySelector("thead");
+    var top = Math.max(0, y - (head ? head.offsetHeight : 0));
+    var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (smooth && !calm && gridScroll.scrollTo) gridScroll.scrollTo({ top: top, behavior: "smooth" });
+    else gridScroll.scrollTop = top;
+  }
+
+  ["wheel", "touchstart", "pointerdown", "keydown"].forEach(function (evName) {
+    gridScroll.addEventListener(evName, function () { userMoved = true; }, { passive: true });
+  });
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { if (!userMoved) scrollToToday(); });
+  }
+
+  gridScroll.addEventListener("scroll", function () {
+    gridScroll.classList.toggle("scrolled", gridScroll.scrollLeft > 0);
+  });
+
+  /* ---------- Speichern ---------- */
+  function setStatus(msg) { statusEl.textContent = msg || ""; }
+
+  var writing = false, dirty = false;
+  async function save() {
+    if (!persist) return;
+    dirty = true;
+    if (writing) return;
+    writing = true;
+    try {
+      while (dirty) {
+        dirty = false;
+        try { await persist(JSON.parse(JSON.stringify({ v: 2, habits: state.habits, log: state.log, notes: state.notes }))); setStatus(""); }
+        catch (e) { setStatus("Speichern hat nicht geklappt. Die letzte Änderung ist nur auf diesem Gerät sichtbar."); }
+      }
+    } finally { writing = false; }
+  }
+
+  function toggleSlot(hid, key, s) {
+    var L = state.log[hid] || (state.log[hid] = {});
+    var m = L[key] || (L[key] = {});
+    if (m[s] !== undefined) delete m[s]; else m[s] = 1;
+    if (Object.keys(m).length === 0) delete L[key];
+    render();
+    save();
+  }
+
+  /* ---------- Bearbeiten-Dialog ---------- */
+  function newDraft(h) {
+    var d = JSON.parse(JSON.stringify(h));
+    while (d.descs.length < MAX_SLOTS) d.descs.push("");
+    d.count = d.multi ? slotCount(d) : 2;
+    return d;
+  }
+
+  function switchHtml(act, on, label) {
+    return '<button type="button" class="switch" role="switch" aria-checked="' + (on ? "true" : "false") + '" aria-label="' + label + '" data-act="' + act + '"><span class="track"><span class="knob"></span></span></button>';
+  }
+
+  function sheetHtml() {
+    var d = draft, h = "";
+    h += '<div class="backdrop" data-act="close"></div>';
+    h += '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">';
+    h += '<div class="phead"><h2 id="sheetTitle">' + (draftNew ? "Neue Gewohnheit" : "Gewohnheit bearbeiten") + '</h2>' +
+      '<button type="button" class="icon-btn" data-act="close" aria-label="Schließen">' + CLOSE + "</button></div>";
+
+    h += '<div class="field"><label class="lbl" for="f-name">Name</label>' +
+      '<input class="inp" id="f-name" data-field="name" type="text" maxlength="40" autocomplete="off" value="' + esc(d.name) + '"></div>';
+
+    if (!d.multi) {
+      h += '<div class="field"><label class="lbl" for="f-sub">Beschreibung</label>' +
+        '<input class="inp" id="f-sub" data-field="sub" type="text" maxlength="60" autocomplete="off" value="' + esc(d.sub) + '"></div>';
+    }
+
+    h += '<div class="card"><div class="row"><div style="min-width:0"><div class="card-title">Mehrmals täglich</div>' +
+      '<div class="help">Pro Tag erscheinen mehrere Haken, jeder mit eigener Beschreibung.</div></div>' +
+      switchHtml("multi", d.multi, "Mehrmals täglich") + "</div>";
+    if (d.multi) {
+      h += '<div class="divider"><div class="row"><span class="card-title" style="font-size:1rem">Anzahl pro Tag</span>' +
+        '<div class="stepper"><button type="button" class="step" data-act="count-down" aria-label="Weniger">−</button>' +
+        '<span class="num" aria-live="polite">' + d.count + '</span>' +
+        '<button type="button" class="step" data-act="count-up" aria-label="Mehr">+</button></div></div>';
+      for (var i = 0; i < d.count; i++) {
+        h += '<div class="field"><label class="lbl" for="f-e' + i + '">Beschreibung ' + (i + 1) + '</label>' +
+          '<input class="inp small" id="f-e' + i + '" data-field="entry" data-i="' + i + '" type="text" maxlength="30" autocomplete="off" placeholder="z. B. Nachmittags" value="' + esc(d.descs[i] || "") + '"></div>';
+      }
+      h += "</div>";
+    }
+    h += "</div>";
+
+    h += '<div class="card pad"><div class="card-title">Wiederholung</div><div class="seg">';
+    [["daily", "Täglich"], ["every", "Alle X Tage"], ["weekdays", "Wochentage"]].forEach(function (m) {
+      h += '<button type="button" data-act="mode" data-mode="' + m[0] + '" aria-pressed="' + (d.mode === m[0] ? "true" : "false") + '">' + m[1] + "</button>";
+    });
+    h += "</div>";
+    if (d.mode === "every") {
+      h += '<div class="stepper"><span class="grow" style="flex:0 0 auto">Alle</span>' +
+        '<button type="button" class="step" data-act="every-down" aria-label="Weniger Tage">−</button>' +
+        '<span class="num" aria-live="polite">' + d.everyN + '</span>' +
+        '<button type="button" class="step" data-act="every-up" aria-label="Mehr Tage">+</button>' +
+        '<span class="unit">Tage</span></div>' +
+        '<div class="field"><label class="lbl" for="f-start">Beginnt am</label>' +
+        '<input class="inp small" id="f-start" data-field="start" type="date" value="' + esc(d.start) + '"></div>';
+    } else if (d.mode === "weekdays") {
+      h += '<div class="days">';
+      WD_MON.forEach(function (w, i) {
+        h += '<button type="button" data-act="day" data-i="' + i + '" aria-label="' + WD_FULL_MON[i] + '" aria-pressed="' + (d.days[i] ? "true" : "false") + '">' + w + "</button>";
+      });
+      h += "</div>";
+    }
+    if (d.mode === "daily") h += '<div class="help" style="margin:0">Jeden Tag erscheint ein Feld.</div>';
+    if (d.mode === "weekdays") h += '<div class="help" style="margin:0">Nur an den gewählten Wochentagen erscheint ein Feld.</div>';
+    h += "</div>";
+
+    h += '<div class="card"><div class="row"><div style="min-width:0"><div class="card-title">Wichtig</div>' +
+      '<div class="help">Offene Felder erscheinen als rotes Ausrufezeichen, bis du sie abhakst.</div></div>' +
+      switchHtml("important", d.important, "Wichtig") + "</div></div>";
+
+    h += '<div class="card"><div class="row"><div style="min-width:0"><div class="card-title">Serie verfolgen</div>' +
+      '<div class="help">Zeigt in der Kopfzeile, an wie vielen Tagen in Folge du es geschafft hast.</div></div>' +
+      switchHtml("streak", d.streak, "Serie verfolgen") + "</div></div>";
+
+    h += '<p class="err" id="err" role="alert">' + esc(draftError) + "</p>";
+    h += '<div class="actions"><button type="button" class="btn primary big" data-act="save">Speichern</button>';
+    if (!draftNew) {
+      h += '<button type="button" class="btn danger" data-act="remove">' + (confirmRemove ? "Wirklich entfernen? Alle Haken gehen verloren." : "Gewohnheit entfernen") + "</button>";
+    }
+    h += "</div></div>";
+    return h;
+  }
+
+  function renderSheet(focusSel) {
+    sheet.className = "overlay";
+    sheet.innerHTML = sheetHtml();
+    document.body.style.overflow = "hidden";
+    if (focusSel) {
+      var el = sheet.querySelector(focusSel);
+      if (el) el.focus();
+    }
+  }
+
+  function openSheet(h, isNew) {
+    draft = newDraft(h);
+    draftNew = isNew;
+    confirmRemove = false;
+    draftError = "";
+    renderSheet(isNew ? "#f-name" : "#sheetTitle ~ .icon-btn, .icon-btn");
+  }
+
+  function closeSheet() {
+    draft = null;
+    noteKey = null;
+    sheet.className = "";
+    sheet.innerHTML = "";
+    document.body.style.overflow = "";
+  }
+
+  function noteSheetHtml() {
+    var p = noteKey.split("-");
+    var long = new Date(+p[0], +p[1] - 1, +p[2], 12).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    var ph = noteKey > todayKey() ? "Was steht an diesem Tag an?" : "Was war an diesem Tag?";
+    var h = '<div class="backdrop" data-act="close"></div>';
+    h += '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">';
+    h += '<div class="phead"><h2 id="sheetTitle">Notiz</h2><button type="button" class="icon-btn" data-act="close" aria-label="Schließen">' + CLOSE + "</button></div>";
+    h += '<div class="field"><label class="lbl" for="f-note">' + esc(long) + "</label>" +
+      '<textarea class="inp area" id="f-note" data-field="note" maxlength="500" placeholder="' + ph + '">' + esc(noteDraft) + "</textarea></div>";
+    h += '<div class="actions"><button type="button" class="btn primary big" data-act="note-save">Speichern</button>';
+    if (state.notes[noteKey]) h += '<button type="button" class="btn danger" data-act="note-delete">Notiz löschen</button>';
+    h += "</div></div>";
+    return h;
+  }
+
+  function openNote(key) {
+    noteKey = key;
+    noteDraft = state.notes[key] || "";
+    sheet.className = "overlay";
+    sheet.innerHTML = noteSheetHtml();
+    document.body.style.overflow = "hidden";
+    var el = $("f-note");
+    if (el) el.focus();
+  }
+
+  function saveNote() {
+    var t = noteDraft.trim();
+    if (t) state.notes[noteKey] = t; else delete state.notes[noteKey];
+    closeSheet();
+    render();
+    save();
+  }
+
+  function saveDraft() {
+    var d = draft, name = d.name.trim();
+    if (!name) { draftError = "Gib der Gewohnheit einen Namen."; renderSheet("#f-name"); return; }
+    if (d.mode === "weekdays" && !d.days.some(Boolean)) { draftError = "Wähle mindestens einen Wochentag."; renderSheet(".days button"); return; }
+    if (d.mode === "every" && !d.start) { draftError = "Wähle ein Startdatum."; renderSheet("#f-start"); return; }
+    var h = normHabit({
+      id: d.id, name: name, sub: d.sub.trim(), streak: d.streak, important: d.important,
+      multi: d.multi, count: d.multi ? d.count : 1,
+      descs: d.multi ? d.descs.slice(0, d.count).map(function (s) { return s.trim(); }) : [],
+      mode: d.mode, everyN: d.everyN, start: d.start || todayKey(), days: d.days.slice()
+    });
+    if (draftNew) state.habits.push(h);
+    else state.habits = state.habits.map(function (x) { return x.id === h.id ? h : x; });
+    closeSheet();
+    render();
+    save();
+  }
+
+  function removeDraft() {
+    var id = draft.id;
+    state.habits = state.habits.filter(function (x) { return x.id !== id; });
+    delete state.log[id];
+    closeSheet();
+    render();
+    save();
+  }
+
+  /* ---------- Ereignisse ---------- */
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest("[data-act]");
+    if (!t) return;
+    var act = t.getAttribute("data-act");
+    if (act !== "remove" && confirmRemove) confirmRemove = false;
+
+    if (act === "slot") { toggleSlot(t.getAttribute("data-h"), t.getAttribute("data-d"), +t.getAttribute("data-s")); return; }
+    if (act === "today") { scrollToToday(true); return; }
+    if (act === "note") { openNote(t.getAttribute("data-d")); return; }
+    if (act === "note-save") { saveNote(); return; }
+    if (act === "note-delete") { delete state.notes[noteKey]; closeSheet(); render(); save(); return; }
+    if (act === "more") {
+      var before = gridScroll.scrollHeight;
+      pastDays += 14;
+      render();
+      gridScroll.scrollTop += gridScroll.scrollHeight - before;
+      return;
+    }
+    if (act === "close") { closeSheet(); return; }
+    if (act === "new") {
+      openSheet(normHabit({ id: "h" + Date.now().toString(36), name: "" }), true);
+      return;
+    }
+    if (act === "open-edit") {
+      var id = t.getAttribute("data-h");
+      var h = state.habits.filter(function (x) { return x.id === id; })[0];
+      if (h) openSheet(h, false);
+      return;
+    }
+    if (!draft) return;
+
+    if (act === "close") { closeSheet(); return; }
+    if (act === "save") { saveDraft(); return; }
+    if (act === "remove") {
+      if (confirmRemove) removeDraft();
+      else { confirmRemove = true; renderSheet('[data-act="remove"]'); }
+      return;
+    }
+    draftError = "";
+    if (act === "multi") {
+      draft.multi = !draft.multi;
+      if (draft.multi && !draft.descs.slice(0, 2).some(function (s) { return s.trim(); })) {
+        draft.descs[0] = "Morgens"; draft.descs[1] = "Abends";
+      }
+      renderSheet('[data-act="multi"]');
+    } else if (act === "count-up") { draft.count = Math.min(MAX_SLOTS, draft.count + 1); renderSheet('[data-act="count-up"]'); }
+    else if (act === "count-down") { draft.count = Math.max(2, draft.count - 1); renderSheet('[data-act="count-down"]'); }
+    else if (act === "mode") { draft.mode = t.getAttribute("data-mode"); renderSheet('[data-mode="' + draft.mode + '"]'); }
+    else if (act === "every-up") { draft.everyN = Math.min(14, draft.everyN + 1); renderSheet('[data-act="every-up"]'); }
+    else if (act === "every-down") { draft.everyN = Math.max(2, draft.everyN - 1); renderSheet('[data-act="every-down"]'); }
+    else if (act === "day") { var i = +t.getAttribute("data-i"); draft.days[i] = !draft.days[i]; renderSheet('[data-act="day"][data-i="' + i + '"]'); }
+    else if (act === "streak") { draft.streak = !draft.streak; renderSheet('[data-act="streak"]'); }
+    else if (act === "important") { draft.important = !draft.important; renderSheet('[data-act="important"]'); }
+  });
+
+  document.addEventListener("input", function (ev) {
+    var t = ev.target, f = t.getAttribute && t.getAttribute("data-field");
+    if (!f) return;
+    if (f === "note") { noteDraft = t.value; return; }
+    if (!draft) return;
+    if (f === "name") draft.name = t.value;
+    else if (f === "sub") draft.sub = t.value;
+    else if (f === "entry") draft.descs[+t.getAttribute("data-i")] = t.value;
+    else if (f === "start") draft.start = t.value;
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && (draft || noteKey)) closeSheet();
+  });
+
+  /* ---------- Laden ---------- */
+  function adopt(data) {
+    if (!data || !Array.isArray(data.habits)) return;
+    if (data.habits.length === 0 && data.v !== 2) return;
+    state.habits = data.habits.map(normHabit);
+    state.notes = data.notes && typeof data.notes === "object" ? data.notes : {};
+    if (data.log && typeof data.log === "object") {
+      state.log = data.log;
+    } else if (data.done && typeof data.done === "object") {
+      var log = {};
+      Object.keys(data.done).forEach(function (hid) {
+        log[hid] = {};
+        Object.keys(data.done[hid]).forEach(function (day) { log[hid][day] = { "0": 1 }; });
+      });
+      state.log = log;
+    } else {
+      state.log = {};
+    }
+  }
+
+  function useLocal() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("gewohnheiten-v1");
+      if (raw) adopt(JSON.parse(raw));
+    } catch (e) {}
+    persist = async function (s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); };
+    render();
+  }
+
+  render();
+
+  async function boot() {
+    var dbNs = null, userNs = null;
+    try {
+      if (window.claude && window.claude.use) {
+        dbNs = await window.claude.use("db");
+        userNs = await window.claude.use("user");
+      }
+    } catch (e) {}
+    var uid = null;
+    try { uid = userNs ? await userNs.id() : null; } catch (e) {}
+    if (!dbNs || !uid) { useLocal(); return; }
+
+    var ref = dbNs.doc("data/users/" + uid + "/tracker");
+    persist = function (s) { return ref.set(s); };
+    ref.onSnapshot(function (snap) {
+      if (writing || dirty) return;
+      if (snap.exists) { adopt(snap.data()); render(); }
+    }, function () { useLocal(); });
+  }
+  boot();
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+}
+</script>
+
+</body>
+</html>
