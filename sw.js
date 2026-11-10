@@ -1,4 +1,4 @@
-const CACHE = "habits-v1";
+const CACHE = "habits-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -16,6 +16,15 @@ self.addEventListener("activate", (e) => {
 // Aus dem Cache antworten, im Hintergrund aktualisieren (auch die Schriften).
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // Manifest immer frisch vom Server holen, damit Änderungen (z. B. die ID) sofort ankommen.
+  if (new URL(e.request.url).pathname.endsWith("manifest.webmanifest")) {
+    e.respondWith(
+      fetch(e.request, { cache: "no-cache" })
+        .then((res) => { if (res.ok) caches.open(CACHE).then((c) => c.put(e.request, res.clone())); return res; })
+        .catch(() => caches.match(e.request, { ignoreSearch: true }))
+    );
+    return;
+  }
   e.respondWith(
     caches.open(CACHE).then((cache) =>
       cache.match(e.request, { ignoreSearch: true }).then((hit) => {
