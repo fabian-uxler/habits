@@ -222,6 +222,8 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
 .btn.big { min-height: 52px; font-size: 1.05rem; }
 .status { margin: 0; color: var(--danger); font-size: 0.85rem; flex-shrink: 0; }
 .status:empty { display: none; }
+.status.ok { color: inherit; }
+.move-btn { width: 100%; }
 .empty { padding: 32px 20px; color: var(--muted); text-align: center; line-height: 1.4; }
 
 /* Bearbeiten-Dialog */
@@ -284,6 +286,7 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
       <div class="summary" id="summary"></div>
       <button type="button" class="today-btn" data-act="today">Heute</button>
     </div>
+    <button type="button" class="btn primary move-btn" data-act="move" id="moveBtn" hidden>MyHabits ist umgezogen: Daten mitnehmen</button>
   </header>
 
   <div class="grid-scroll" id="gridScroll">
@@ -303,6 +306,10 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
   var WD_MON = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
   var WD_FULL_MON = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
   var STORE_KEY = "gewohnheiten-v2";
+  // Umzug: Die App bekommt eine eigene Adresse. Auf der alten Adresse erscheint ein Knopf,
+  // der die Daten im Link-Anker (#umzug=...) an die neue Adresse mitgibt.
+  var OLD_HOST = "fabian-uxler.github.io";
+  var NEW_URL = ""; // wird gesetzt, sobald die neue Adresse steht
   var MAX_SLOTS = 6;
 
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
@@ -510,7 +517,38 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
   });
 
   /* ---------- Speichern ---------- */
-  function setStatus(msg) { statusEl.textContent = msg || ""; }
+  function setStatus(msg, ok) { statusEl.textContent = msg || ""; statusEl.classList.toggle("ok", !!ok); }
+
+  /* ---------- Umzug auf neue Adresse ---------- */
+  function packState() {
+    var json = JSON.stringify({ v: 2, habits: state.habits, log: state.log, notes: state.notes });
+    return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function unpackState(str) {
+    var b = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (b.length % 4) b += "=";
+    return JSON.parse(decodeURIComponent(escape(atob(b))));
+  }
+  function takeOverFromLink() {
+    var m = /^#umzug=(.+)$/.exec(location.hash || "");
+    if (!m) return false;
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    try {
+      var data = unpackState(m[1]);
+      if (!data || !Array.isArray(data.habits)) throw new Error("leer");
+      var raw = localStorage.getItem(STORE_KEY);
+      var had = raw && (JSON.parse(raw).habits || []).length;
+      if (had && !confirm("Hier sind schon Gewohnheiten gespeichert. Durch die Daten von der alten Adresse ersetzen?")) return false;
+      adopt(data);
+      localStorage.setItem(STORE_KEY, JSON.stringify({ v: 2, habits: state.habits, log: state.log, notes: state.notes }));
+      setStatus("Deine Daten sind übernommen. Du kannst MyHabits jetzt installieren.", true);
+      return true;
+    } catch (e) {
+      setStatus("Die Daten konnten nicht übernommen werden. Bitte noch einmal von der alten Adresse aus versuchen.");
+      return false;
+    }
+  }
+  if (NEW_URL && location.hostname === OLD_HOST) $("moveBtn").hidden = false;
 
   var writing = false, dirty = false;
   async function save() {
@@ -715,6 +753,7 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
 
     if (act === "slot") { toggleSlot(t.getAttribute("data-h"), t.getAttribute("data-d"), +t.getAttribute("data-s")); return; }
     if (act === "today") { scrollToToday(true); return; }
+    if (act === "move") { location.href = NEW_URL + "#umzug=" + packState(); return; }
     if (act === "note") { openNote(t.getAttribute("data-d")); return; }
     if (act === "note-save") { saveNote(); return; }
     if (act === "note-delete") { delete state.notes[noteKey]; closeSheet(); render(); save(); return; }
@@ -802,6 +841,7 @@ button:focus-visible, input:focus-visible, .slot:focus-visible { outline: 2px so
       var raw = localStorage.getItem(STORE_KEY) || localStorage.getItem("gewohnheiten-v1");
       if (raw) adopt(JSON.parse(raw));
     } catch (e) {}
+    takeOverFromLink();
     persist = async function (s) { localStorage.setItem(STORE_KEY, JSON.stringify(s)); };
     render();
   }
